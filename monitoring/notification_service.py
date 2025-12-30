@@ -586,7 +586,7 @@ class NotificationService:
         if escalation_level >= 1:
             base_channels.extend(['telegram'])
             recipients.update({
-                'telegram': '9842478259'  # User's phone number for Telegram
+                'telegram': '7238208371'  # User's correct chat ID
             })
         
         if escalation_level >= 2:
@@ -638,15 +638,7 @@ class NotificationService:
             lines.extend([
                 "",
                 f"This alert has been escalated to level {escalation_level}.",
-                f"Escalation count: {alert.escalation_count}",
-                f"Last escalated: {alert.escalated_at.strftime('%Y-%m-%d %H:%M:%S UTC') if alert.escalated_at else 'N/A'}"
-            ])
-        
-        if alert.additional_data:
-            lines.extend([
-                "",
-                "Additional Information:",
-                json.dumps(alert.additional_data, indent=2)
+                f"Last escalated: {alert.last_seen.strftime('%Y-%m-%d %H:%M:%S UTC')}"
             ])
         
         return "\n".join(lines)
