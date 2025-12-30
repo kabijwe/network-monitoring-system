@@ -1,0 +1,222 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:17-alpine
+    container_name: nms_postgres
+    environment:
+      POSTGRES_DB: nms_db
+      POSTGRES_USER: nms_user
+      POSTGRES_PASSWORD: nms_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - nms_network
+    restart: unless-stopped
+
+  # Redis for Caching and Celery
+  redis:
+    image: redis:7-alpine
+    container_name: nms_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - nms_network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # Django Application
+  django:
+    build:
+      context: .
+      dockerfile: docker/django/Dockerfile
+    container_name: nms_django
+    environment:
+      - DEBUG=1
+      - DATABASE_URL=postgresql://nms_user:nms_password@postgres:5432/nms_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - nms_network
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+
+  # Celery Worker
+  celery:
+    build:
+      context: .
+      dockerfile: docker/django/Dockerfile
+    container_name: nms_celery
+    environment:
+      - DEBUG=1
+      - DATABASE_URL=postgresql://nms_user:nms_password@postgres:5432/nms_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - .:/app
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - nms_network
+    restart: unless-stopped
+    command: celery -A nms worker -l info
+
+  # Celery Beat Scheduler
+  celery-beat:
+    build:
+      context: .
+      dockerfile: docker/django/Dockerfile
+    container_name: nms_celery_beat
+    environment:
+      - DEBUG=1
+      - DATABASE_URL=postgresql://nms_user:nms_password@postgres:5432/nms_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - .:/app
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - nms_network
+    restart: unless-stopped
+    command: celery -A nms beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: nms_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./docker/prometheus/rules:/etc/prometheus/rules
+      - prometheus_data:/prometheus
+    networks:
+      - nms_network
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: nms_grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - nms_network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # Blackbox Exporter for Ping Monitoring
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.25.0
+    container_name: nms_blackbox_exporter
+    ports:
+      - "9115:9115"
+    volumes:
+      - ./docker/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml
+    networks:
+      - nms_network
+    restart: unless-stopped
+
+  # SNMP Exporter
+  snmp-exporter:
+    image: prom/snmp-exporter:v0.26.0
+    container_name: nms_snmp_exporter
+    ports:
+      - "9116:9116"
+    volumes:
+      - ./docker/snmp/snmp.yml:/etc/snmp_exporter/snmp.yml
+    networks:
+      - nms_network
+    restart: unless-stopped
+
+  # Node Exporter for Self-Monitoring
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: nms_node_exporter
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - nms_network
+    restart: unless-stopped
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: nms_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      - static_volume:/var/www/static
+      - media_volume:/var/www/media
+      - ./docker/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - django
+      - grafana
+    networks:
+      - nms_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  static_volume:
+  media_volume:
+
+networks:
+  nms_network:
+    driver: bridge
