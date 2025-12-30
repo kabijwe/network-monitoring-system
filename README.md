@@ -361,7 +361,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🆘 Support
 
-- 📧 Email: support@yourcompany.com
+- 📧 Email: kabijwe@gmail.com
 - 📖 Documentation: [Wiki](https://github.com/yourusername/network-monitoring-system/wiki)
 - 🐛 Issues: [GitHub Issues](https://github.com/yourusername/network-monitoring-system/issues)
 
