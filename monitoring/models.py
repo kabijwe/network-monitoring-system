@@ -212,6 +212,19 @@ class Host(models.Model):
             packet_count=self.ping_packet_count
         )
 
+    def is_in_maintenance(self):
+        """Check if the host is currently in a maintenance window."""
+        if not self.in_maintenance:
+            return False
+        
+        # If maintenance window is not time-bound, consider it always in maintenance
+        if not self.maintenance_start or not self.maintenance_end:
+            return True
+        
+        # Check if current time is within maintenance window
+        now = timezone.now()
+        return self.maintenance_start <= now <= self.maintenance_end
+
 
 class PingResult(models.Model):
     """
