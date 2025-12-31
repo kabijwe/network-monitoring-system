@@ -336,18 +336,28 @@ class PingMonitor:
         if not result.success:
             return 'down'
         
+        # Check for critical conditions first (worst case)
+        is_critical = False
+        is_warning = False
+        
         # Check packet loss thresholds
         if result.packet_loss >= self.thresholds.critical_packet_loss:
-            return 'critical'
+            is_critical = True
         elif result.packet_loss >= self.thresholds.warning_packet_loss:
-            return 'warning'
+            is_warning = True
         
         # Check latency thresholds
         if result.latency is not None:
             if result.latency >= self.thresholds.critical_latency:
-                return 'critical'
+                is_critical = True
             elif result.latency >= self.thresholds.warning_latency:
-                return 'warning'
+                is_warning = True
+        
+        # Return worst status
+        if is_critical:
+            return 'critical'
+        elif is_warning:
+            return 'warning'
         
         return 'up'
     

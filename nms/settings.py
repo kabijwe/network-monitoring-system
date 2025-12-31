@@ -301,6 +301,22 @@ MONITORING_SETTINGS = {
     'ALERT_COOLDOWN': 300,  # seconds
 }
 
+# Discovery Configuration
+DISCOVERY_SETTINGS = {
+    'SUBNETS': config('DISCOVERY_SUBNETS', default='192.168.1.0/24,10.0.0.0/24', cast=Csv()),
+    'PING_TIMEOUT': config('DISCOVERY_PING_TIMEOUT', default=2, cast=int),
+    'SNMP_TIMEOUT': config('DISCOVERY_SNMP_TIMEOUT', default=5, cast=int),
+    'SNMP_COMMUNITIES': config('DISCOVERY_SNMP_COMMUNITIES', default='public,private', cast=Csv()),
+    'SNMP_VERSIONS': config('DISCOVERY_SNMP_VERSIONS', default='2c', cast=Csv()),
+    'PORT_SCAN_ENABLED': config('DISCOVERY_PORT_SCAN_ENABLED', default=False, cast=bool),
+    'PORT_SCAN_PORTS': config('DISCOVERY_PORT_SCAN_PORTS', default='22,23,80,443,161', cast=Csv(cast=int)),
+    'MAX_CONCURRENT_SCANS': config('DISCOVERY_MAX_CONCURRENT_SCANS', default=50, cast=int),
+    'DEVICE_CLASSIFICATION_ENABLED': config('DISCOVERY_DEVICE_CLASSIFICATION_ENABLED', default=True, cast=bool),
+    'AUTO_APPROVE_KNOWN_DEVICES': config('DISCOVERY_AUTO_APPROVE_KNOWN_DEVICES', default=False, cast=bool),
+    'DISCOVERY_INTERVAL_HOURS': config('DISCOVERY_INTERVAL_HOURS', default=24, cast=int),
+    'DISCOVERY_RETENTION_DAYS': config('DISCOVERY_RETENTION_DAYS', default=90, cast=int),
+}
+
 # Notification Settings
 NOTIFICATION_SETTINGS = {
     # Email configuration

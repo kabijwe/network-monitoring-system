@@ -111,58 +111,58 @@ The implementation uses Django 5.1+ with Python 3.12+ for the backend, React 19 
     - Add latency and packet loss measurement
     - _Requirements: 3.1_
 
-  - [ ] 6.2 Create property-based tests for ping monitoring
+  - [x] 6.2 Create property-based tests for ping monitoring
     - **Property 14: Ping monitoring completeness**
     - **Validates: Requirements 3.1**
 
-  - [ ] 6.3 Implement SNMP monitoring system
+  - [x] 6.3 Implement SNMP monitoring system
     - Add SNMP v2c and v3 support using pysnmp
     - Create collectors for interface statistics, system metrics, and environmental data
     - Implement conditional collection for optical interfaces
     - _Requirements: 3.2, 3.3, 3.4, 3.5, 3.6_
 
-  - [ ] 6.4 Write property tests for SNMP monitoring
+  - [x] 6.4 Write property tests for SNMP monitoring
     - **Property 15: SNMP protocol support**
     - **Property 16: Conditional metrics collection**
     - **Validates: Requirements 3.2, 3.3, 3.4, 3.5, 3.6**
 
-  - [ ] 6.5 Implement service checks and plugin system
+  - [x] 6.5 Implement service checks and plugin system
     - Create TCP/UDP port and HTTP/HTTPS endpoint monitoring
     - Add support for custom Python monitoring plugins
     - Implement plugin sandboxing and error handling
     - _Requirements: 3.7, 3.8_
 
-  - [ ] 6.6 Write property tests for service monitoring
+  - [x] 6.6 Write property tests for service monitoring
     - **Property 17: Service check protocol support**
     - **Property 18: Plugin execution safety**
     - **Validates: Requirements 3.7, 3.8**
 
-- [ ] 7. Celery Task System and Scheduling
-  - [ ] 7.1 Set up Celery with Redis backend
+- [x] 7. Celery Task System and Scheduling
+  - [x] 7.1 Set up Celery with Redis backend
     - Configure Celery workers and beat scheduler
     - Create periodic tasks for monitoring (30-second intervals)
     - Implement task error handling and retry logic
     - _Requirements: 10.3_
 
-  - [ ] 7.2 Implement monitoring task orchestration
+  - [x] 7.2 Implement monitoring task orchestration
     - Create Celery tasks for ping, SNMP, and service checks
     - Add task scheduling based on host configuration
     - Implement task result processing and status updates
     - _Requirements: 3.1, 3.2, 3.7_
 
-  - [ ] 7.3 Write property tests for task system
+  - [x] 7.3 Write property tests for task system
     - **Property 14: Ping monitoring completeness**
     - **Property 15: SNMP protocol support**
     - **Validates: Requirements 3.1, 3.2, 3.7**
 
-- [ ] 8. Auto-Discovery System
-  - [ ] 8.1 Implement network discovery
+- [x] 8. Auto-Discovery System
+  - [x] 8.1 Implement network discovery
     - Create subnet scanning functionality using ping and SNMP
     - Add device type identification and classification
     - Implement approval workflow for discovered devices
     - _Requirements: 3.9, 3.10_
 
-  - [ ] 8.2 Write property test for discovery system
+  - [x] 8.2 Write property test for discovery system
     - **Property 19: Discovery workflow integrity**
     - **Validates: Requirements 3.9, 3.10**
 

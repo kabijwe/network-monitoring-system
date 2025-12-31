@@ -122,6 +122,20 @@ class Host(models.Model):
     snmp_community = models.CharField(max_length=100, blank=True, default='public')
     snmp_version = models.CharField(max_length=10, default='2c', choices=[('1', 'v1'), ('2c', 'v2c'), ('3', 'v3')])
     
+    # SNMP v3 authentication (optional)
+    snmp_username = models.CharField(max_length=100, blank=True, help_text='SNMP v3 username')
+    snmp_auth_protocol = models.CharField(max_length=10, blank=True, choices=[('', 'None'), ('MD5', 'MD5'), ('SHA', 'SHA')], help_text='SNMP v3 auth protocol')
+    snmp_auth_password = models.CharField(max_length=100, blank=True, help_text='SNMP v3 auth password')
+    snmp_priv_protocol = models.CharField(max_length=10, blank=True, choices=[('', 'None'), ('DES', 'DES'), ('AES', 'AES')], help_text='SNMP v3 privacy protocol')
+    snmp_priv_password = models.CharField(max_length=100, blank=True, help_text='SNMP v3 privacy password')
+    snmp_port = models.IntegerField(default=161, help_text='SNMP port number')
+    
+    # Service monitoring configuration
+    service_checks_enabled = models.BooleanField(default=False)
+    tcp_ports = models.CharField(max_length=500, blank=True, help_text='Comma-separated list of TCP ports to monitor')
+    udp_ports = models.CharField(max_length=500, blank=True, help_text='Comma-separated list of UDP ports to monitor')
+    http_urls = models.TextField(blank=True, help_text='One HTTP/HTTPS URL per line to monitor')
+    
     # Current status
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='unknown')
     last_seen = models.DateTimeField(null=True, blank=True)
@@ -700,3 +714,215 @@ class EscalationRule(models.Model):
             return list(self.level_3_profiles.all())
         else:
             return []
+
+
+class DiscoveredDevice(models.Model):
+    """
+    Devices discovered through network scanning that are pending approval.
+    """
+    DISCOVERY_STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('auto_approved', 'Auto-Approved'),
+        ('ignored', 'Ignored'),
+    ]
+    
+    DISCOVERY_METHOD_CHOICES = [
+        ('ping', 'Ping Sweep'),
+        ('snmp', 'SNMP Discovery'),
+        ('port_scan', 'Port Scanning'),
+        ('manual', 'Manual Entry'),
+        ('import', 'Bulk Import'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Basic device information
+    ip_address = models.GenericIPAddressField(unique=True)
+    hostname = models.CharField(max_length=255, blank=True, null=True)
+    mac_address = models.CharField(max_length=17, blank=True, null=True)
+    
+    # Device classification
+    device_type = models.CharField(max_length=50, blank=True, null=True)
+    vendor = models.CharField(max_length=100, blank=True, null=True)
+    os_info = models.TextField(blank=True, null=True)
+    
+    # SNMP information
+    snmp_community = models.CharField(max_length=100, blank=True, null=True)
+    snmp_version = models.CharField(max_length=10, blank=True, null=True)
+    
+    # Discovery metadata
+    discovery_method = models.CharField(
+        max_length=20, 
+        choices=DISCOVERY_METHOD_CHOICES, 
+        default='ping'
+    )
+    confidence_score = models.FloatField(default=0.0)
+    additional_data = models.JSONField(default=dict, blank=True)
+    
+    # Status and workflow
+    status = models.CharField(
+        max_length=20, 
+        choices=DISCOVERY_STATUS_CHOICES, 
+        default='pending'
+    )
+    
+    # Timestamps
+    discovered_at = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now_add=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejected_at = models.DateTimeField(null=True, blank=True)
+    
+    # Relationships
+    approved_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='approved_discoveries'
+    )
+    rejected_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='rejected_discoveries'
+    )
+    host = models.OneToOneField(
+        Host, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='discovered_device'
+    )
+    
+    # Rejection reason
+    rejection_reason = models.TextField(blank=True, null=True)
+    
+    class Meta:
+        db_table = 'monitoring_discovered_device'
+        verbose_name = 'Discovered Device'
+        verbose_name_plural = 'Discovered Devices'
+        ordering = ['-discovered_at']
+        indexes = [
+            models.Index(fields=['ip_address']),
+            models.Index(fields=['status']),
+            models.Index(fields=['discovered_at']),
+            models.Index(fields=['device_type']),
+        ]
+    
+    def __str__(self):
+        return f"{self.ip_address} ({self.hostname or 'Unknown'})"
+    
+    @property
+    def is_pending(self):
+        """Check if device is pending approval."""
+        return self.status == 'pending'
+    
+    @property
+    def is_approved(self):
+        """Check if device has been approved."""
+        return self.status in ['approved', 'auto_approved']
+    
+    @property
+    def is_rejected(self):
+        """Check if device has been rejected."""
+        return self.status == 'rejected'
+    
+    def approve(self, user, location, group):
+        """
+        Approve the discovered device and create a Host.
+        
+        Args:
+            user: User approving the device
+            location: Location to assign the device to
+            group: Group to assign the device to
+            
+        Returns:
+            Created Host instance
+        """
+        if self.is_approved:
+            raise ValueError("Device is already approved")
+        
+        # Map device type to Host choices
+        device_type_mapping = {
+            'router': 'router',
+            'switch': 'switch',
+            'firewall': 'firewall',
+            'server': 'server',
+            'access_point': 'ap',
+            'printer': 'other',
+            'camera': 'other',
+            'ups': 'other',
+            'unknown': 'other'
+        }
+        
+        mapped_device_type = device_type_mapping.get(self.device_type, 'other')
+        
+        # Create new host
+        host = Host.objects.create(
+            hostname=self.hostname or self.ip_address,
+            ip_address=self.ip_address,
+            location=location,
+            group=group,
+            device_type=mapped_device_type,
+            snmp_enabled=bool(self.snmp_community),
+            snmp_community=self.snmp_community or 'public',
+            snmp_version=self.snmp_version or '2c',
+            monitoring_enabled=True,
+            ping_enabled=True,
+            created_by=user
+        )
+        
+        # Update discovery record
+        self.status = 'approved'
+        self.approved_at = timezone.now()
+        self.approved_by = user
+        self.host = host
+        self.save()
+        
+        return host
+    
+    def reject(self, user, reason=''):
+        """
+        Reject the discovered device.
+        
+        Args:
+            user: User rejecting the device
+            reason: Reason for rejection
+        """
+        if self.is_rejected:
+            raise ValueError("Device is already rejected")
+        
+        self.status = 'rejected'
+        self.rejected_at = timezone.now()
+        self.rejected_by = user
+        self.rejection_reason = reason
+        self.save()
+    
+    def get_confidence_level(self):
+        """Get human-readable confidence level."""
+        if self.confidence_score >= 0.8:
+            return 'High'
+        elif self.confidence_score >= 0.5:
+            return 'Medium'
+        elif self.confidence_score >= 0.2:
+            return 'Low'
+        else:
+            return 'Very Low'
+    
+    def get_discovery_age(self):
+        """Get age of discovery in human-readable format."""
+        age = timezone.now() - self.discovered_at
+        
+        if age.days > 0:
+            return f"{age.days} day{'s' if age.days != 1 else ''} ago"
+        elif age.seconds > 3600:
+            hours = age.seconds // 3600
+            return f"{hours} hour{'s' if hours != 1 else ''} ago"
+        elif age.seconds > 60:
+            minutes = age.seconds // 60
+            return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+        else:
+            return "Just now"
