@@ -48,6 +48,86 @@ class User(AbstractUser):
     def full_name(self):
         return self.get_full_name() or self.username
 
+    def get_accessible_locations(self):
+        """
+        Get all locations accessible to this user based on their role assignments.
+        SuperAdmins get access to all locations.
+        """
+        # Import here to avoid circular imports
+        from monitoring.models import Location
+        
+        # SuperAdmins have access to everything
+        if self.user_roles.filter(role__name='superadmin', is_active=True).exists():
+            return Location.objects.all()
+        
+        # Get locations from role assignments
+        location_ids = set()
+        for user_role in self.user_roles.filter(is_active=True):
+            if user_role.location:
+                location_ids.add(user_role.location.id)
+            elif not user_role.location and user_role.role.name in ['admin']:
+                # Admins without specific location get all locations
+                return Location.objects.all()
+        
+        if location_ids:
+            return Location.objects.filter(id__in=location_ids)
+        else:
+            # If no specific locations assigned, return empty queryset
+            return Location.objects.none()
+
+    def get_accessible_groups(self):
+        """
+        Get all device groups accessible to this user based on their role assignments.
+        SuperAdmins get access to all groups.
+        """
+        # Import here to avoid circular imports
+        from monitoring.models import DeviceGroup
+        
+        # SuperAdmins have access to everything
+        if self.user_roles.filter(role__name='superadmin', is_active=True).exists():
+            return DeviceGroup.objects.all()
+        
+        # Get groups from role assignments
+        group_ids = set()
+        for user_role in self.user_roles.filter(is_active=True):
+            if user_role.group:
+                group_ids.add(user_role.group.id)
+            elif not user_role.group and user_role.role.name in ['admin']:
+                # Admins without specific group get all groups
+                return DeviceGroup.objects.all()
+        
+        if group_ids:
+            return DeviceGroup.objects.filter(id__in=group_ids)
+        else:
+            # If no specific groups assigned, return empty queryset
+            return DeviceGroup.objects.none()
+
+    def has_role(self, role_name):
+        """
+        Check if user has a specific role.
+        """
+        return self.user_roles.filter(
+            role__name=role_name, 
+            is_active=True
+        ).exists()
+
+    def get_highest_role(self):
+        """
+        Get the highest role assigned to this user.
+        Role hierarchy: superadmin > admin > editor > viewer
+        """
+        role_hierarchy = ['superadmin', 'admin', 'editor', 'viewer']
+        
+        user_role_names = set(
+            self.user_roles.filter(is_active=True).values_list('role__name', flat=True)
+        )
+        
+        for role in role_hierarchy:
+            if role in user_role_names:
+                return role
+        
+        return 'viewer'  # Default role
+
 
 class Role(models.Model):
     """

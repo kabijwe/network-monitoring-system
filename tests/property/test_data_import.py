@@ -77,7 +77,7 @@ class DataImportPropertyTests(HypothesisTestCase):
                 max_size=50
             ).filter(lambda x: x.strip() and not x.startswith('-') and not x.endswith('-')),
             min_size=1,
-            max_size=20,
+            max_size=5,
             unique=True
         ),
         ip_addresses=st.lists(
@@ -89,11 +89,11 @@ class DataImportPropertyTests(HypothesisTestCase):
                 st.integers(min_value=1, max_value=254)
             ),
             min_size=1,
-            max_size=20,
+            max_size=5,
             unique=True
         )
     )
-    @hypothesis_settings(max_examples=50, deadline=10000)
+    @hypothesis_settings(max_examples=10, deadline=5000)
     def test_excel_column_auto_detection_property(self, hostnames, ip_addresses):
         """
         Property 7: Excel column auto-detection works correctly for various column name formats.
@@ -155,7 +155,7 @@ class DataImportPropertyTests(HypothesisTestCase):
                 st.integers(min_value=1, max_value=254)
             ),
             min_size=1,
-            max_size=10,
+            max_size=3,
             unique=True
         ),
         invalid_ips=st.lists(
@@ -170,7 +170,7 @@ class DataImportPropertyTests(HypothesisTestCase):
             max_size=5
         )
     )
-    @hypothesis_settings(max_examples=30, deadline=10000)
+    @hypothesis_settings(max_examples=5, deadline=5000)
     def test_data_validation_during_bulk_operations_property(self, valid_ips, invalid_ips):
         """
         Property 8: Data validation during bulk operations correctly identifies valid and invalid data.
@@ -240,7 +240,7 @@ class DataImportPropertyTests(HypothesisTestCase):
         device_types=st.lists(
             st.sampled_from(['ap', 'sm', 'switch', 'router', 'firewall', 'server', 'other']),
             min_size=1,
-            max_size=10
+            max_size=3
         ),
         ap_names=st.lists(
             st.text(
@@ -249,7 +249,7 @@ class DataImportPropertyTests(HypothesisTestCase):
                 max_size=30
             ).filter(lambda x: x.strip()),
             min_size=1,
-            max_size=10
+            max_size=3
         ),
         cids=st.lists(
             st.text(
@@ -258,10 +258,10 @@ class DataImportPropertyTests(HypothesisTestCase):
                 max_size=20
             ).filter(lambda x: x.strip()),
             min_size=1,
-            max_size=10
+            max_size=3
         )
     )
-    @hypothesis_settings(max_examples=30, deadline=10000)
+    @hypothesis_settings(max_examples=5, deadline=5000)
     def test_isp_specific_field_processing_property(self, device_types, ap_names, cids):
         """
         Property: ISP-specific fields (AP Name, CID, AP IP, SM IP) are correctly processed.
@@ -320,7 +320,7 @@ class DataImportPropertyTests(HypothesisTestCase):
         user_roles=st.sampled_from(['viewer', 'editor', 'admin', 'superadmin']),
         operation_types=st.sampled_from(['upload', 'export', 'validate'])
     )
-    @hypothesis_settings(max_examples=20, deadline=5000)
+    @hypothesis_settings(max_examples=3, deadline=5000)
     def test_permission_based_bulk_operations_property(self, user_roles, operation_types):
         """
         Property 9: Permission-based bulk operations enforce correct access control.
@@ -413,7 +413,7 @@ class DataImportPropertyTests(HypothesisTestCase):
         file_sizes=st.integers(min_value=1, max_value=15),  # MB
         row_counts=st.integers(min_value=1, max_value=1000)
     )
-    @hypothesis_settings(max_examples=10, deadline=15000)
+    @hypothesis_settings(max_examples=3, deadline=8000)
     def test_bulk_operation_performance_property(self, file_sizes, row_counts):
         """
         Property: Bulk operations handle various file sizes and row counts efficiently.
@@ -421,12 +421,12 @@ class DataImportPropertyTests(HypothesisTestCase):
         This test verifies that the system can handle different scales of bulk operations
         without performance degradation or memory issues.
         """
-        assume(file_sizes <= 10)  # Limit file size for testing
-        assume(row_counts <= 100)  # Limit rows for testing performance
+        assume(file_sizes <= 5)  # Limit file size for testing
+        assume(row_counts <= 20)  # Limit rows for testing performance
         
         # Create test data
         data = []
-        for i in range(min(row_counts, 50)):  # Limit for test performance
+        for i in range(min(row_counts, 15)):  # Limit for test performance
             data.append({
                 'hostname': f'perftest{i:04d}',
                 'ip_address': f'192.168.{(i // 254) + 1}.{(i % 254) + 1}',

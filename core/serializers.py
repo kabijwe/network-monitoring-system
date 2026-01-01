@@ -12,18 +12,101 @@ User = get_user_model()
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """
-    Custom JWT token serializer that includes user information and audit logging.
+    Custom JWT token serializer that includes user information, MFA support, and audit logging.
     """
+    mfa_token = serializers.CharField(required=False, allow_blank=True)
     
     def validate(self, attrs):
         # Get the request from context
         request = self.context.get('request')
         
-        # Perform authentication
-        data = super().validate(attrs)
+        # First, authenticate with username/password
+        username = attrs.get('username')
+        password = attrs.get('password')
+        mfa_token = attrs.get('mfa_token', '')
+        
+        if username is None or password is None:
+            raise serializers.ValidationError('Must include username and password.')
+        
+        # Authenticate user
+        user = authenticate(request=request, username=username, password=password)
+        
+        if user is None:
+            # Log failed login attempt
+            if request:
+                session_key = 'api-request'
+                if hasattr(request, 'session') and request.session.session_key:
+                    session_key = request.session.session_key
+                
+                AuditLog.objects.create(
+                    user=None,
+                    username=username,
+                    action='login',
+                    resource_type='Authentication',
+                    resource_id='',
+                    resource_name=username,
+                    description=f'Failed login attempt for username: {username}',
+                    ip_address=self._get_client_ip(request),
+                    user_agent=request.META.get('HTTP_USER_AGENT', ''),
+                    session_key=session_key,
+                    success=False,
+                    error_message='Invalid credentials'
+                )
+            
+            raise serializers.ValidationError('Invalid credentials.')
+        
+        if not user.is_active:
+            raise serializers.ValidationError('User account is disabled.')
+        
+        # Check if MFA is enabled for this user
+        from .mfa import MFAService
+        if MFAService.is_mfa_enabled(user):
+            if not mfa_token:
+                # Return special response indicating MFA is required
+                raise serializers.ValidationError({
+                    'mfa_required': True,
+                    'message': 'MFA token is required for this user.'
+                })
+            
+            # Verify MFA token
+            from django_otp.plugins.otp_totp.models import TOTPDevice
+            device = user.totpdevice_set.filter(confirmed=True).first()
+            
+            if not device or not device.verify_token(mfa_token):
+                # Log failed MFA attempt
+                if request:
+                    session_key = 'api-request'
+                    if hasattr(request, 'session') and request.session.session_key:
+                        session_key = request.session.session_key
+                    
+                    AuditLog.objects.create(
+                        user=user,
+                        username=user.username,
+                        action='login',
+                        resource_type='Authentication',
+                        resource_id=str(user.id),
+                        resource_name=user.username,
+                        description=f'Failed MFA verification for user: {user.username}',
+                        ip_address=self._get_client_ip(request),
+                        user_agent=request.META.get('HTTP_USER_AGENT', ''),
+                        session_key=session_key,
+                        success=False,
+                        error_message='Invalid MFA token'
+                    )
+                
+                raise serializers.ValidationError('Invalid MFA token.')
+        
+        # Set user for token generation
+        self.user = user
+        
+        # Generate tokens
+        refresh = self.get_token(user)
+        data = {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }
         
         # Add user information to the response
-        user = self.user
         data.update({
             'user': {
                 'id': str(user.id),
@@ -59,12 +142,16 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 resource_type='Authentication',
                 resource_id=str(user.id),
                 resource_name=user.username,
-                description=f'User {user.username} logged in successfully',
+                description=f'User {user.username} logged in successfully' + (' with MFA' if MFAService.is_mfa_enabled(user) else ''),
                 ip_address=self._get_client_ip(request),
                 user_agent=request.META.get('HTTP_USER_AGENT', ''),
                 session_key=session_key,
                 success=True
             )
+            
+            # Update last login IP
+            user.last_login_ip = self._get_client_ip(request)
+            user.save(update_fields=['last_login_ip'])
         
         return data
     

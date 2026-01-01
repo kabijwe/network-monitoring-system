@@ -729,6 +729,75 @@ class EscalationRule(models.Model):
             return []
 
 
+class AlertEscalation(models.Model):
+    """
+    Track escalation state for alerts.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    alert = models.OneToOneField(Alert, on_delete=models.CASCADE, related_name='escalation')
+    escalation_rule = models.ForeignKey(EscalationRule, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Escalation state
+    current_level = models.IntegerField(default=0)
+    last_escalation_time = models.DateTimeField(null=True, blank=True)
+    next_escalation_time = models.DateTimeField()
+    
+    # Acknowledgment tracking
+    acknowledged = models.BooleanField(default=False)
+    acknowledged_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    acknowledgment_comment = models.TextField(blank=True)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'monitoring_alert_escalation'
+        verbose_name = 'Alert Escalation'
+        verbose_name_plural = 'Alert Escalations'
+        indexes = [
+            models.Index(fields=['next_escalation_time']),
+            models.Index(fields=['current_level']),
+            models.Index(fields=['acknowledged']),
+        ]
+
+    def __str__(self):
+        return f"Escalation for {self.alert.title} - Level {self.current_level}"
+
+
+class AlertEscalationHistory(models.Model):
+    """
+    Historical record of alert escalations.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    alert = models.ForeignKey(Alert, on_delete=models.CASCADE, related_name='escalation_history')
+    escalation_rule = models.ForeignKey(EscalationRule, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Escalation details
+    escalation_level = models.IntegerField()
+    escalation_time = models.DateTimeField()
+    notification_profiles = models.ManyToManyField(NotificationProfile, blank=True)
+    notification_results = models.JSONField(default=dict, blank=True)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'monitoring_alert_escalation_history'
+        verbose_name = 'Alert Escalation History'
+        verbose_name_plural = 'Alert Escalation History'
+        indexes = [
+            models.Index(fields=['alert', 'escalation_time']),
+            models.Index(fields=['escalation_level']),
+            models.Index(fields=['escalation_time']),
+        ]
+        ordering = ['-escalation_time']
+
+    def __str__(self):
+        return f"Escalation L{self.escalation_level} for {self.alert.title} at {self.escalation_time}"
+
+
 class DiscoveredDevice(models.Model):
     """
     Devices discovered through network scanning that are pending approval.

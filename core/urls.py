@@ -34,6 +34,9 @@ urlpatterns = [
     path('user-info/', user_info, name='user_info'),
     path('check-username/', check_username, name='check_username'),
     
+    # MFA endpoints
+    path('mfa/', include('core.urls_mfa')),
+    
     # System status
     path('status/', system_status, name='system_status'),
     

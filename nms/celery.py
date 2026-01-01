@@ -86,6 +86,27 @@ app.conf.beat_schedule = {
             'expires': 3600,  # Task expires after 1 hour
         }
     },
+    
+    # Notification retry processing - runs every 15 minutes
+    'process-notification-retries': {
+        'task': 'monitoring.tasks.notification_tasks.process_notification_retries',
+        'schedule': 900.0,  # Every 15 minutes
+        'options': {
+            'expires': 840,  # Task expires after 14 minutes
+        }
+    },
+    
+    # Notification log cleanup - runs daily at 1 AM
+    'cleanup-old-notification-logs': {
+        'task': 'monitoring.tasks.notification_tasks.cleanup_old_notification_logs',
+        'schedule': {
+            'hour': 1,
+            'minute': 0,
+        },
+        'options': {
+            'expires': 3600,  # Task expires after 1 hour
+        }
+    },
 }
 
 # Celery configuration
@@ -97,6 +118,9 @@ app.conf.update(
         'monitoring.tasks.service_monitoring_task': {'queue': 'monitoring'},
         'monitoring.tasks.schedule_monitoring_tasks': {'queue': 'scheduler'},
         'monitoring.tasks.process_alert_escalations': {'queue': 'alerts'},
+        'monitoring.tasks.notification_tasks.send_alert_notification': {'queue': 'notifications'},
+        'monitoring.tasks.notification_tasks.process_notification_retries': {'queue': 'notifications'},
+        'monitoring.tasks.notification_tasks.cleanup_old_notification_logs': {'queue': 'maintenance'},
         'monitoring.tasks.cleanup_old_data': {'queue': 'maintenance'},
         'monitoring.tasks.health_check_task': {'queue': 'maintenance'},
         'monitoring.tasks.network_discovery_task': {'queue': 'discovery'},
@@ -169,6 +193,20 @@ app.conf.task_routes = {
     'monitoring.tasks.process_alert_escalations': {
         'queue': 'alerts',
         'routing_key': 'alerts.escalation',
+    },
+    
+    # Notification processing - high priority
+    'monitoring.tasks.notification_tasks.send_alert_notification': {
+        'queue': 'notifications',
+        'routing_key': 'notifications.send',
+    },
+    'monitoring.tasks.notification_tasks.process_notification_retries': {
+        'queue': 'notifications',
+        'routing_key': 'notifications.retry',
+    },
+    'monitoring.tasks.notification_tasks.cleanup_old_notification_logs': {
+        'queue': 'maintenance',
+        'routing_key': 'maintenance.notification_cleanup',
     },
     
     # Maintenance tasks - low priority

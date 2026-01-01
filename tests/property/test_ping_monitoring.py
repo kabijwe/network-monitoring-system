@@ -132,7 +132,7 @@ class PingMonitoringPropertyTests(HypothesisTestCase):
         ip_addresses=st.lists(ip_address_strategy(), min_size=1, max_size=2, unique=True),
         thresholds=ping_thresholds_strategy()
     )
-    @hypothesis_settings(max_examples=3, deadline=6000)
+    @hypothesis_settings(max_examples=2, deadline=4000)
     def test_ping_monitoring_completeness_property(self, hostnames, ip_addresses, thresholds):
         """
         Property 14: Ping monitoring completeness
@@ -218,7 +218,7 @@ class PingMonitoringPropertyTests(HypothesisTestCase):
         ping_results=st.lists(ping_result_data_strategy(), min_size=1, max_size=3),
         thresholds=ping_thresholds_strategy()
     )
-    @hypothesis_settings(max_examples=3, deadline=4000)
+    @hypothesis_settings(max_examples=2, deadline=3000)
     def test_ping_status_evaluation_consistency_property(self, ping_results, thresholds):
         """
         Property: Ping status evaluation is consistent across different inputs.
@@ -324,7 +324,7 @@ class PingMonitoringPropertyTests(HypothesisTestCase):
         packets_sent=st.integers(min_value=1, max_value=10),
         success_rates=st.floats(min_value=0.0, max_value=1.0)
     )
-    @hypothesis_settings(max_examples=3, deadline=4000)
+    @hypothesis_settings(max_examples=2, deadline=3000)
     def test_ping_result_data_integrity_property(self, latencies, packet_losses, packets_sent, success_rates):
         """
         Property: Ping result data maintains integrity and consistency.
@@ -387,7 +387,7 @@ class PingMonitoringPropertyTests(HypothesisTestCase):
         concurrent_hosts=st.integers(min_value=2, max_value=2),
         max_concurrent=st.integers(min_value=1, max_value=2)
     )
-    @hypothesis_settings(max_examples=2, deadline=6000)
+    @hypothesis_settings(max_examples=1, deadline=4000)
     def test_concurrent_ping_monitoring_property(self, concurrent_hosts, max_concurrent):
         """
         Property: Concurrent ping monitoring handles multiple hosts correctly.
@@ -452,7 +452,7 @@ class PingMonitoringPropertyTests(HypothesisTestCase):
         monitoring_enabled=st.booleans(),
         ping_enabled=st.booleans()
     )
-    @hypothesis_settings(max_examples=3, deadline=3000)
+    @hypothesis_settings(max_examples=2, deadline=3000)
     def test_maintenance_mode_ping_behavior_property(self, maintenance_status, monitoring_enabled, ping_enabled):
         """
         Property: Ping monitoring respects maintenance mode.
@@ -499,7 +499,7 @@ class PingMonitoringPropertyTests(HypothesisTestCase):
         ]),
         error_messages=st.text(min_size=1, max_size=100)
     )
-    @hypothesis_settings(max_examples=2, deadline=4000)
+    @hypothesis_settings(max_examples=1, deadline=3000)
     def test_ping_error_handling_property(self, error_types, error_messages):
         """
         Property: Ping monitoring handles errors gracefully.

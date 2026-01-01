@@ -26,6 +26,7 @@ django-prometheus==2.3.1
 # Authentication and Security
 django-otp==1.5.4
 cryptography==42.0.8
+qrcode==8.0
 
 # Data Processing
 openpyxl==3.1.5

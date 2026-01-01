@@ -294,6 +294,22 @@ class PingMonitoringService:
                 )
                 
                 logger.info(f"Created new alert {alert.id} for host {host.hostname}: {title}")
+                
+                # Process alert correlation and deduplication
+                try:
+                    from .correlation_service import correlation_service
+                    correlation_result = correlation_service.process_new_alert(alert)
+                    logger.info(f"Alert correlation result for {alert.id}: {correlation_result}")
+                except Exception as e:
+                    logger.error(f"Error processing alert correlation for {alert.id}: {e}")
+                
+                # Trigger notification for new alert (only if not suppressed or deduplicated)
+                if alert.status == 'active':
+                    try:
+                        from .tasks.notification_tasks import send_alert_notification
+                        send_alert_notification.delay(str(alert.id))
+                    except Exception as e:
+                        logger.error(f"Failed to trigger notification for alert {alert.id}: {e}")
     
     def cleanup_old_ping_results(self, days: Optional[int] = None) -> int:
         """
